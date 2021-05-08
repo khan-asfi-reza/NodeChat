@@ -6,6 +6,9 @@ const user = db.users;
 const op = db.Sequelize.Op;
 // Encryption Module
 const bcrypt = require("bcrypt");
+// JWT Token
+const createToken = require("./utils").createToken;
+
 
 // User Create Method
 exports.createUser = async(req, res) => {
@@ -34,11 +37,14 @@ exports.createUser = async(req, res) => {
                             password: newPassword,
                             email: email,
                             full_name: full_name
-                        }
+                        };
                         // Create User and Send Data
                         user.create(newUser)
                             .then((data) => {
-                                res.send(data);
+                                res.send({
+                                    username: username,
+                                    token: createToken(username)
+                                });
                             }).catch((e)=>{
                                 res.status(500).send({
                                     message : "Error sending data"
@@ -47,4 +53,49 @@ exports.createUser = async(req, res) => {
                     }
                 })
         }
-}
+};
+
+
+// Authenticate Users
+
+exports.authenticateUser = (req, res) => {
+  try {
+      const {username, password} = req.body;
+      if(username && password){
+          // Check User Validity
+          user.findOne({where: {username: username}})
+              .then(async (data) => {
+                  // If user does not exist
+                  if(!data){
+                      res.status(400).send({
+                          message: "Invalid Username"
+                      })
+                  }else{
+                      // If user exists and password matches
+                      if(await bcrypt.compare(password, data.password)){
+                          // Send Token
+                          res.send({
+                              username: username,
+                              token: createToken(username)
+                          })
+                      }else{
+                          // Otherwise Send Error Password
+                          res.status(400).send({
+                              message: "Incorrect password"
+                          })
+                      }
+                  }
+              }).catch((e)=>{
+                  res.status(400).send({
+                      message: "Invalid Username"
+                  })
+          })
+      }
+  }
+  catch (e) {
+      res.status(500).send({
+          "message": "Server Error"
+      })
+  }
+
+};
